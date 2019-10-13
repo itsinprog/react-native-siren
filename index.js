@@ -1,94 +1,99 @@
-import React from 'react'
-import { Alert, Linking } from 'react-native'
-import DeviceInfo from 'react-native-device-info'
-import apisauce from 'apisauce'
+import React from "react";
+import { Alert, Linking } from "react-native";
+import DeviceInfo from "react-native-device-info";
+import apisauce from "apisauce";
 
-const createAPI = (baseURL = 'https://itunes.apple.com/') => {
+const createAPI = (baseURL = "https://itunes.apple.com/") => {
   const api = apisauce.create({
     baseURL,
     headers: {
-      'Cache-Control': 'no-cache',
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      "Cache-Control": "no-cache",
+      "Content-Type": "application/json",
+      Accept: "application/json"
     },
     timeout: 10000
-  })
+  });
 
   return {
-    getLatest: (bundleId) => api.get('lookup', {bundleId})
-  }
-}
+    getLatest: bundleId => api.get("lookup", { bundleId })
+  };
+};
 
 const performCheck = () => {
-  let updateIsAvailable = false
-  const api = createAPI()
-  const bundleId = DeviceInfo.getBundleId()
+  let updateIsAvailable = false;
+  const api = createAPI();
+  // Return if in simulator, because this call will fail
+  if (DeviceInfo.getModel() === "Simulator") {
+    return {
+      updateIsAvailable
+    };
+  }
+  const bundleId = DeviceInfo.getBundleId();
 
   // Call API
   return api.getLatest(bundleId).then(response => {
-    let latestInfo = null
+    let latestInfo = null;
     // Did we get our exact result?
     if (response.ok && response.data.resultCount === 1) {
-      latestInfo = response.data.results[0]
+      latestInfo = response.data.results[0];
       // check for version difference
 
-      updateIsAvailable = latestInfo.version !== DeviceInfo.getVersion()
+      updateIsAvailable = latestInfo.version !== DeviceInfo.getVersion();
     }
 
-    return {updateIsAvailable, ...latestInfo}
-  })
-}
+    return { updateIsAvailable, ...latestInfo };
+  });
+};
 
-const attemptUpgrade = (appId) => {
+const attemptUpgrade = appId => {
   // failover if itunes - a bit excessive
-  const appStoreURI = `itms-apps://apps.apple.com/app/id${appId}?mt=8`
-  const appStoreURL = `https://apps.apple.com/app/id${appId}?mt=8`
+  const appStoreURI = `itms-apps://apps.apple.com/app/id${appId}?mt=8`;
+  const appStoreURL = `https://apps.apple.com/app/id${appId}?mt=8`;
 
   Linking.canOpenURL(appStoreURI).then(supported => {
     if (supported) {
-      Linking.openURL(appStoreURI)
+      Linking.openURL(appStoreURI);
     } else {
-      Linking.openURL(appStoreURL)
+      Linking.openURL(appStoreURL);
     }
-  })
-}
+  });
+};
 
-const showUpgradePrompt = (appId, {
-  title = 'Update Available', 
-  message = 'There is an updated version available on the App Store. Would you like to upgrade?',
-  buttonUpgradeText = 'Upgrade',
-  buttonCancelText = 'Cancel',
-  forceUpgrade = false
-}) => {
-  const buttons = [{
-    text: buttonUpgradeText, onPress: () => attemptUpgrade(appId)
-  }]
+const showUpgradePrompt = (
+  appId,
+  {
+    title = "Update Available",
+    message = "There is an updated version available on the App Store. Would you like to upgrade?",
+    buttonUpgradeText = "Upgrade",
+    buttonCancelText = "Cancel",
+    forceUpgrade = false
+  }
+) => {
+  const buttons = [
+    {
+      text: buttonUpgradeText,
+      onPress: () => attemptUpgrade(appId)
+    }
+  ];
 
   if (forceUpgrade === false) {
-    buttons.push({text: buttonCancelText})
+    buttons.push({ text: buttonCancelText });
   }
 
-  Alert.alert(
-    title,
-    message,
-    buttons,
-    { cancelable: !!forceUpgrade }
-  )
-}
+  Alert.alert(title, message, buttons, { cancelable: !!forceUpgrade });
+};
 
 const promptUser = (defaultOptions = {}, versionSpecificOptions = []) => {
   performCheck().then(sirenResult => {
     if (sirenResult.updateIsAvailable) {
-      const options = 
-        versionSpecificOptions.find(o => o.localVersion === DeviceInfo.getVersion())
-        || defaultOptions
+      const options = versionSpecificOptions.find(o => o.localVersion === DeviceInfo.getVersion()) || defaultOptions;
 
-      showUpgradePrompt(sirenResult.trackId, options)
+      showUpgradePrompt(sirenResult.trackId, options);
     }
-  })
-}
+  });
+};
 
 export default {
   promptUser,
   performCheck
-}
+};
